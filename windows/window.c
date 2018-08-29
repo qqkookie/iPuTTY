@@ -1860,18 +1860,23 @@ static void init_fonts(int pick_width, int pick_height)
 			   FIXED_PITCH | FF_DONTCARE, font->name)
 
     if (kbd_codepage == 949) {
-	if (strncmp(font->name, "³ª´®", 4) == 0 ||
-	    strcmp(font->name, "D2Coding") == 0 ||
-	    strncmp(font->name, "Noto Sans CJK", 13) == 0 ||
-	    strncmp(font->name, "±¼¸²", 4) == 0 ||
-	    strncmp(font->name, "±Ã¼­", 4) == 0 ||
-	    strncmp(font->name, "µ¸¿ò", 4) == 0 ||
-	    strncmp(font->name, "¸¼Àº", 4) == 0 ||
-	    strncmp(font->name, "¹®Á¦ºÎ", 6) == 0 ||
-	    strncmp(font->name, "¹ÙÅÁ", 4) == 0 ||
-	    strcmp(font->name, "»õ±¼¸²") == 0 ||
-	    strncmp(font->name, "ÇÔÃÊ", 4) == 0 ||
-	    strncmp(font->name, "ÈÞ¸Õ", 4) == 0) {
+		// Make font name comparison independent on source encoding or system locale
+		// MBCS system locale can be UTF-8. (Windows 10 beta) 
+		WCHAR wfname[20];
+		MultiByteToWideChar(CP_ACP, 0, font->name, lstrlen(font->name) + 1, wfname, 19);
+		wfname[19] = L'\0';
+	if (wcsncmp( wfname, L"ë‚˜ë­„", 2) == 0 ||
+		wcsncmp( wfname, L"D2Coding", 8) == 0 ||
+		wcsncmp( wfname, L"Noto Sans CJK", 13) == 0 ||
+		wcsncmp( wfname, L"êµ´ë¦¼", 2) == 0 ||
+		wcsncmp( wfname, L"ê¶ì„œ", 2) == 0 ||
+		wcsncmp( wfname, L"ë‹ì›€", 2) == 0 ||
+		wcsncmp( wfname, L"ë§‘ì€", 2) == 0 ||
+		wcsncmp( wfname, L"ë¬¸ì²´ë¶€", 3) == 0 ||
+		wcsncmp( wfname, L"ë°”íƒ•", 2) == 0 ||
+		wcsncmp( wfname, L"ë°”íƒ•", 3) == 0 ||
+		wcsncmp( wfname, L"ìƒˆêµ´ë¦¼", 2) == 0 ||
+		wcsncmp( wfname, L"íœ´ë¨¼", 2) == 0) {
 	    font->charset = HANGEUL_CHARSET;
 	}
     }
@@ -2401,13 +2406,9 @@ static Mouse_Button translate_button(Mouse_Button button)
 {
     if (button == MBT_LEFT)
 	return MBT_SELECT;
-    if (button == MBT_MIDDLE)
-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
-	MBT_PASTE : MBT_EXTEND;
-    if (button == MBT_RIGHT)
-	return conf_get_int(conf, CONF_mouse_is_xterm) == 1 ?
-	MBT_EXTEND : MBT_PASTE;
-    return 0;			       /* shouldn't happen */
+    return (((conf_get_int(conf, CONF_mouse_is_xterm) == 0 ) 
+		== (button == MBT_RIGHT))
+			? MBT_PASTE : MBT_EXTEND);
 }
 
 static void show_mouseptr(int show)
@@ -3055,9 +3056,12 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
       case WM_LBUTTONUP:
       case WM_MBUTTONUP:
       case WM_RBUTTONUP:
-	if (message == WM_RBUTTONDOWN &&
+	// 4th and 5th mouse button to Popup Menu. 
+	  case WM_XBUTTONDOWN:
+	if (message == WM_XBUTTONDOWN ||
+		(message == WM_RBUTTONDOWN &&
 	    ((wParam & MK_CONTROL) ||
-	     (conf_get_int(conf, CONF_mouse_is_xterm) == 2))) {
+		(conf_get_int(conf, CONF_mouse_is_xterm) == 2)))) {
 	    POINT cursorpos;
 
 	    show_mouseptr(1);	       /* make sure pointer is visible */
@@ -3718,8 +3722,9 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	 */
       case WM_KEYDOWN:
 	// Make Esc key change IMM Status to English(Alpha-Numeric) Mode.
+	// And Return key, too. 
 	// https://github.com/Joungkyun/iputty/issues/12
-	if (wParam == VK_ESCAPE) {
+	if (wParam == VK_ESCAPE || wParam == VK_RETURN) {
 	    HIMC hImc = ImmGetContext(hwnd);
 	    if (ImmGetOpenStatus(hImc)) {
 		ImmSetConversionStatus(hImc, IME_CMODE_ALPHANUMERIC, IME_SMODE_NONE);
